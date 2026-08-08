@@ -1,24 +1,72 @@
-# AGENTS.md — dqn_bridge
+# Agent Architecture & Specifications (`CartPole-v1`)
 
-Single-file PyTorch DQN implementation for CartPole-v1 (Phase 1).
+This document details the mathematical specifications, loss formulations, and hyperparameter configurations for the three agents implemented in this project, replicating implementations from well-known reinforcement learning papers.
 
-## Commands
+---
 
-```bash
-pip install -r requirements.txt   # install deps (torch, gymnasium, numpy, matplotlib)
-python dqn.py                      # train DQN for 500 episodes
-```
+## 1. Deep Q-Network (DQN)
+* **Reference:** Mnih et al. (2013, 2015)
+* **Paradigm:** Off-policy, Value-based Deep Reinforcement Learning
 
-## Structure
+### Core Architecture
+* **Policy/Value Network:** MLP ($4 \rightarrow 128 \rightarrow 128 \rightarrow 2$) with ReLU activations.
+* **Replay Buffer:** FIFO memory queue $\mathcal{D}$ with maximum capacity $N = 10,000$. Samples mini-batches of size $B = 64$ uniformly at random $(s, a, r, s', d) \sim U(\mathcal{D})$ once buffer contains $\ge 1,000$ steps.
+* **Target Network:** Independent network weights $\theta^-$ updated via hard copy ($\theta^- \leftarrow \theta$) every $C = 500$ environment steps.
 
-- `dqn.py` — self-contained training script with `QNetwork`, `ReplayBuffer`, `DQNAgent`, and `train()`
-- `requirements.txt` — exact dependencies
-- `training_curve.png` — output plot (auto-generated after training)
+### Mathematical Formulation
+* **TD Target Calculation:**
+  $$y_i = r_i + \gamma (1 - d_i) \max_{a'} Q(s'_i, a'; \theta^-)$$
+* **Loss Function:** Smooth L1 (Huber) Loss to stabilize gradient steps against outlier TD errors:
+  $$\mathcal{L}(\theta) = \frac{1}{B} \sum_{i=1}^{B} \text{Huber}\left( y_i - Q(s_i, a_i; \theta) \right)$$
+* **Exploration Schedule:** $\epsilon$-greedy decaying exponentially from $1.0$ to $0.05$ with decay factor $0.995$.
 
-## Code conventions
+---
 
-- Ring-buffer `ReplayBuffer` uses NumPy arrays internally; `sample()` returns PyTorch tensors
-- Epsilon decays linearly over `epsilon_decay` steps, not episodes
-- Target network syncs every `target_update_freq` gradient steps
-- MSE loss on TD targets: $r + \gamma (1-d) \max_{a'} Q(s', a'; \theta^-)$
-- Running `python dqn.py` is the only entrypoint; no test framework configured yet
+## 2. Double Deep Q-Network (Double DQN)
+* **Reference:** van Hasselt et al. (2015)
+* **Paradigm:** Off-policy, Value-based (Decoupled Action Selection & Evaluation)
+
+### Core Architecture
+* **Identical Baseline:** Uses the same network architecture, replay buffer capacity, learning rate ($10^{-3}$), and target copy frequency ($C = 500$) as standard DQN to isolate the impact of overestimation bias reduction.
+
+### Mathematical Formulation
+* **Decoupled TD Target Calculation:**
+  1. *Action Selection* via online network $\theta$:
+     $$a^* = \arg\max_{a'} Q(s'_i, a'; \theta)$$
+  2. *Action Evaluation* via target network $\theta^-$:
+     $$y_i = r_i + \gamma (1 - d_i) Q(s'_i, a^*; \theta^-)$$
+* **Loss Function:** Smooth L1 (Huber) Loss over the decoupled target $y_i$.
+
+---
+
+## 3. REINFORCE (Monte Carlo Policy Gradient)
+* **Reference:** Williams (1992), Sutton et al. (1999)
+* **Paradigm:** On-policy, Direct Policy Optimization
+
+### Core Architecture
+* **Policy Network:** MLP ($4 \rightarrow 128 \rightarrow 2$) outputting unnormalized logits passed into a `Categorical` action distribution $\pi_\theta(a|s)$.
+* **Memory Strategy:** Full trajectory on-policy rollouts $(s_0, a_0, r_0), \dots, (s_T, a_T, r_T)$. No replay buffer or target network is used. Trajectory memory is wiped completely after every gradient update.
+
+### Mathematical Formulation
+* **Backward Discounted Return:**
+  $$G_t = \sum_{k=t}^{T-1} \gamma^{k-t} r_k$$
+* **Variance Reduction (Standardized Baseline):**
+  $$\hat{G}_t = \frac{G_t - \mu_G}{\sigma_G + 10^{-8}}$$
+* **Objective & Loss Function:** Minimizes the negative log-likelihood weighted by standardized return:
+  $$\mathcal{L}(\theta) = - \sum_{t=0}^{T-1} \log \pi_\theta(a_t \mid s_t) \cdot \hat{G}_t$$
+* **Update Frequency:** Once per complete episode using Adam optimizer ($\alpha = 10^{-3}$).
+
+---
+
+## Summary Hyperparameter Comparison
+
+| Parameter | DQN | Double DQN | REINFORCE |
+| :--- | :--- | :--- | :--- |
+| **Learning Rate ($\alpha$)** | $10^{-3}$ | $10^{-3}$ | $10^{-3}$ |
+| **Discount Factor ($\gamma$)** | $0.99$ | $0.99$ | $0.99$ |
+| **Data Collection** | Off-policy (Replay Buffer) | Off-policy (Replay Buffer) | On-policy (Episode Rollout) |
+| **Buffer Capacity** | $10,000$ | $10,000$ | $N/A$ |
+| **Batch Size** | $64$ | $64$ | Complete Episode |
+| **Target Update ($C$)** | Every $500$ steps | Every $500$ steps | $N/A$ |
+| **Loss Criteria** | Huber Loss | Huber Loss | Policy Negative Log-Likelihood |
+| **Output File** | `logs/dqn_rewards.json` | `logs/double_dqn_rewards.json` | `logs/reinforce_rewards.json` |
