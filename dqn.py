@@ -1,3 +1,6 @@
+import json
+import os
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -68,7 +71,8 @@ class DQNAgent:
         gamma=0.99,
         buffer_size=10000,
         batch_size=64,
-        target_update_freq=100,
+        min_replay_size=1000,
+        target_update_freq=500,
         epsilon_start=1.0,
         epsilon_end=0.05,
         epsilon_decay=5000,
@@ -77,6 +81,7 @@ class DQNAgent:
         self.action_dim = action_dim
         self.gamma = gamma
         self.batch_size = batch_size
+        self.min_replay_size = min_replay_size
         self.target_update_freq = target_update_freq
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
@@ -88,7 +93,7 @@ class DQNAgent:
         self.target_network.eval()
 
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=lr)
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = nn.SmoothL1Loss()
 
         self.replay_buffer = ReplayBuffer(buffer_size)
         self.steps = 0
@@ -105,7 +110,7 @@ class DQNAgent:
             return q_values.argmax().item()
 
     def update(self):
-        if len(self.replay_buffer) < self.batch_size:
+        if len(self.replay_buffer) < self.min_replay_size:
             return None
 
         states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
@@ -113,8 +118,7 @@ class DQNAgent:
         current_q = self.q_network(states).gather(1, actions)
 
         with torch.no_grad():
-            next_actions = self.q_network(next_states).argmax(1, keepdim=True)
-            next_q = self.target_network(next_states).gather(1, next_actions)
+            next_q = self.target_network(next_states).max(1, keepdim=True).values
             target_q = rewards + self.gamma * next_q * (1 - dones)
 
         loss = self.loss_fn(current_q, target_q)
@@ -190,6 +194,13 @@ def train():
 
     env.close()
     plot_training_curve(episode_rewards)
+
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "dqn_rewards.json")
+    with open(log_path, "w") as f:
+        json.dump({"algorithm": "DQN", "rewards": episode_rewards}, f)
+    print(f"Rewards saved to {log_path}")
 
     best = max(episode_rewards)
     print(f"Training complete. Best episode reward: {best}")
