@@ -106,9 +106,10 @@ def train():
 
     agent = ReinforceAgent(state_dim=state_dim, action_dim=action_dim)
 
+    num_episodes = 5000
     episode_rewards = []
 
-    for episode in range(500):
+    for episode in range(num_episodes):
         state, _ = env.reset()
         episode_reward = 0.0
         terminated = False
@@ -124,12 +125,12 @@ def train():
         agent.update()
         episode_rewards.append(episode_reward)
 
-        if (episode + 1) % 50 == 0:
-            avg = np.mean(episode_rewards[-50:])
+        if (episode + 1) % 250 == 0:
+            avg = np.mean(episode_rewards[-250:])
             print(
                 f"Episode {episode + 1:4d} | "
                 f"Reward: {episode_reward:5.1f} | "
-                f"Avg(50): {avg:5.1f}"
+                f"Avg(250): {avg:5.1f}"
             )
 
     env.close()

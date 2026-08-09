@@ -63,19 +63,27 @@ def plot_comparison(runs, save_path="comparison.png"):
     print(f"Plot saved to {save_path}")
 
 
-def run_comparison(log_dir="logs", save_path="comparison.png"):
+def run_comparison(log_dir="logs"):
     runs = scan_logs(log_dir)
     if not runs:
         print(f"No JSON files found in {log_dir}/")
         return
+
+    budgets = {}
     for algorithm, rewards in runs.items():
-        stats = {"mean": float(np.mean(rewards)), "std": float(np.std(rewards))}
-        if len(rewards) >= MA_WINDOW:
-            ma = moving_average(rewards, MA_WINDOW)
-            stats["mean_moving_avg"] = float(ma[-1])
-            stats["best"] = float(np.max(rewards))
-        print(f"{algorithm}: {stats}")
-    plot_comparison(runs, save_path)
+        budgets.setdefault(len(rewards), {})[algorithm] = rewards
+
+    for episode_count, group in budgets.items():
+        for algorithm, rewards in group.items():
+            stats = {"mean": float(np.mean(rewards)), "std": float(np.std(rewards))}
+            if len(rewards) >= MA_WINDOW:
+                ma = moving_average(rewards, MA_WINDOW)
+                stats["mean_moving_avg"] = float(ma[-1])
+                stats["best"] = float(np.max(rewards))
+            print(f"{algorithm} ({episode_count} episodes): {stats}")
+
+        save_path = f"comparison_{episode_count}ep.png"
+        plot_comparison(group, save_path)
 
 
 if __name__ == "__main__":

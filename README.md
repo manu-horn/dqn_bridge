@@ -21,14 +21,15 @@ dqn_bridge/
 ├── dqn.py                  # DQN agent + training loop (Mnih 2013/2015)
 ├── double_dqn.py           # Double DQN agent + training loop (van Hasselt 2015)
 ├── reinforce.py            # REINFORCE agent + training loop (Williams 1992)
-├── utils.py                # Compares runs from logs/ and plots comparison.png
+├── utils.py                # Compares runs from logs/ and plots per-budget comparison charts
 ├── AGENTS.md               # Agent architecture & hyperparameter specifications
 ├── requirements.txt
 ├── logs/                   # Per-algorithm reward histories (JSON)
 │   ├── dqn_rewards.json
 │   ├── double_dqn_rewards.json
 │   └── reinforce_rewards.json
-└── comparison.png          # Benchmark figure produced by utils.py
+├── comparison_500ep.png    # DQN vs Double DQN (500-episode budget)
+└── comparison_5000ep.png   # REINFORCE (5,000-episode budget)
 ```
 
 ## Installation
@@ -39,23 +40,23 @@ pip install -r requirements.txt
 
 ## Usage
 
-Train each algorithm (500 episodes each):
+Train each algorithm:
 
 ```bash
-python dqn.py
-python double_dqn.py
-python reinforce.py
+python dqn.py          # 500 episodes → logs/dqn_rewards.json
+python double_dqn.py   # 500 episodes → logs/double_dqn_rewards.json
+python reinforce.py    # 5,000 episodes → logs/reinforce_rewards.json
 ```
 
-Each run appends/is-saved to its JSON reward log in `logs/`.
+Each run saves its raw per-episode rewards to a JSON log in `logs/`. REINFORCE uses a 10× larger budget because it performs only a single gradient update per episode and, being on-policy, requires many more rollouts to converge.
 
-Compare all trained algorithms:
+Compare trained runs:
 
 ```bash
 python utils.py
 ```
 
-This reads every JSON in `logs/`, computes a 30-episode moving average and standard deviation per algorithm, and saves a single comparison figure with shaded variance bands to `comparison.png`.
+This reads every JSON in `logs/` and groups curves by episode budget so runs are only plotted on comparable axes. It produces one figure per budget, each with 30-episode moving-average lines and shaded standard-deviation bands: `comparison_500ep.png` (DQN vs Double DQN) and `comparison_5000ep.png` (REINFORCE).
 
 ## Logging Contract
 
