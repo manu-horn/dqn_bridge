@@ -36,6 +36,7 @@ class ReinforceAgent:
         self.actions = []
         self.rewards = []
         self.log_probs = []
+        self.episode_returns = []
 
     def select_action(self, state):
         dist = self.policy(torch.FloatTensor(state).unsqueeze(0))
@@ -55,9 +56,15 @@ class ReinforceAgent:
 
     def update(self):
         returns = self._compute_returns()
-        mean = returns.mean()
-        std = returns.std()
+
+        if len(self.episode_returns) > 1:
+            mean = np.mean(self.episode_returns)
+            std = np.std(self.episode_returns)
+        else:
+            mean = returns.mean()
+            std = returns.std()
         standardized = (returns - mean) / (std + 1e-8)
+        self.episode_returns.append(returns[0])
 
         log_probs = torch.stack(self.log_probs)
         standardized_t = torch.FloatTensor(standardized)
@@ -106,7 +113,7 @@ def train():
 
     agent = ReinforceAgent(state_dim=state_dim, action_dim=action_dim)
 
-    num_episodes = 5000
+    num_episodes = 1000
     episode_rewards = []
 
     for episode in range(num_episodes):

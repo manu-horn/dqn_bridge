@@ -10,7 +10,7 @@ Demonstrate faithful replication of ideas from foundational RL papers:
 | :--- | :--- | :--- |
 | **DQN** | Mnih et al. (2013, 2015) | Experience replay, target network, Huber loss to stabilize Q-learning with function approximation |
 | **Double DQN** | van Hasselt et al. (2015) | Decoupled action selection (online net) and evaluation (target net) to reduce overestimation bias |
-| **REINFORCE** | Williams (1992), Sutton et al. (1999) | Monte Carlo policy gradient with a categorical policy and standardized-return baseline |
+| **REINFORCE** | Williams (1992), Sutton et al. (1999) | Monte Carlo policy gradient with a categorical policy and a cross-episode standardized-return baseline |
 
 Each agent is designed to match its paper's specifications (replay buffer size, batch size, target update interval, loss function, exploration schedule) while sharing an identical training loop and logging format so results are directly comparable.
 
@@ -29,7 +29,7 @@ dqn_bridge/
 │   ├── double_dqn_rewards.json
 │   └── reinforce_rewards.json
 ├── comparison_500ep.png    # DQN vs Double DQN (500-episode budget)
-└── comparison_5000ep.png   # REINFORCE (5,000-episode budget)
+└── comparison_1000ep.png   # REINFORCE (1,000-episode budget)
 ```
 
 ## Installation
@@ -45,10 +45,10 @@ Train each algorithm:
 ```bash
 python dqn.py          # 500 episodes → logs/dqn_rewards.json
 python double_dqn.py   # 500 episodes → logs/double_dqn_rewards.json
-python reinforce.py    # 5,000 episodes → logs/reinforce_rewards.json
+python reinforce.py    # 1,000 episodes → logs/reinforce_rewards.json
 ```
 
-Each run saves its raw per-episode rewards to a JSON log in `logs/`. REINFORCE uses a 10× larger budget because it performs only a single gradient update per episode and, being on-policy, requires many more rollouts to converge.
+Each run saves its raw per-episode rewards to a JSON log in `logs/`. REINFORCE uses a larger budget because it performs only a single gradient update per episode and, being on-policy, requires more rollouts to converge.
 
 Compare trained runs:
 
@@ -56,7 +56,7 @@ Compare trained runs:
 python utils.py
 ```
 
-This reads every JSON in `logs/` and groups curves by episode budget so runs are only plotted on comparable axes. It produces one figure per budget, each with 30-episode moving-average lines and shaded standard-deviation bands: `comparison_500ep.png` (DQN vs Double DQN) and `comparison_5000ep.png` (REINFORCE).
+This reads every JSON in `logs/` and groups curves by episode budget so runs are only plotted on comparable axes. It produces one figure per budget, each with 30-episode moving-average lines and shaded standard-deviation bands: `comparison_500ep.png` (DQN vs Double DQN) and `comparison_1000ep.png` (REINFORCE).
 
 ## Logging Contract
 

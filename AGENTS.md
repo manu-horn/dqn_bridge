@@ -46,13 +46,14 @@ This document details the mathematical specifications, loss formulations, and hy
 ### Core Architecture
 * **Policy Network:** MLP ($4 \rightarrow 128 \rightarrow 2$) outputting unnormalized logits passed into a `Categorical` action distribution $\pi_\theta(a|s)$.
 * **Memory Strategy:** Full trajectory on-policy rollouts $(s_0, a_0, r_0), \dots, (s_T, a_T, r_T)$. No replay buffer or target network is used. Trajectory memory is wiped completely after every gradient update.
-* **Training Budget:** Trained for $5{,}000$ episodes (versus $500$ for DQN and Double DQN), since REINFORCE performs a single gradient update per episode and requires many more on-policy rollouts to converge.
+* **Training Budget:** Trained for $1{,}000$ episodes (versus $500$ for DQN and Double DQN), since REINFORCE performs a single gradient update per episode and requires more on-policy rollouts to converge.
 
 ### Mathematical Formulation
 * **Backward Discounted Return:**
   $$G_t = \sum_{k=t}^{T-1} \gamma^{k-t} r_k$$
-* **Variance Reduction (Standardized Baseline):**
+* **Variance Reduction (Cross-Episode Standardized Baseline):**
   $$\hat{G}_t = \frac{G_t - \mu_G}{\sigma_G + 10^{-8}}$$
+  where $\mu_G$ and $\sigma_G$ are the mean and standard deviation of episode returns accumulated **across previously seen episodes**, so the signal preserves whether an episode performed above or below the running performance average. (Standardizing within a single trajectory would erase this between-episode signal.)
 * **Objective & Loss Function:** Minimizes the negative log-likelihood weighted by standardized return:
   $$\mathcal{L}(\theta) = - \sum_{t=0}^{T-1} \log \pi_\theta(a_t \mid s_t) \cdot \hat{G}_t$$
 * **Update Frequency:** Once per complete episode using Adam optimizer ($\alpha = 10^{-3}$).
@@ -70,5 +71,5 @@ This document details the mathematical specifications, loss formulations, and hy
 | **Batch Size** | $64$ | $64$ | Complete Episode |
 | **Target Update ($C$)** | Every $500$ steps | Every $500$ steps | $N/A$ |
 | **Loss Criteria** | Huber Loss | Huber Loss | Policy Negative Log-Likelihood |
-| **Episode Budget** | $500$ | $500$ | $5{,}000$ |
+| **Episode Budget** | $500$ | $500$ | $1{,}000$ |
 | **Output File** | `logs/dqn_rewards.json` | `logs/double_dqn_rewards.json` | `logs/reinforce_rewards.json` |
