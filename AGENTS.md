@@ -9,7 +9,7 @@ This document details the mathematical specifications, loss formulations, and hy
 * **Paradigm:** Off-policy, Value-based Deep Reinforcement Learning
 
 ### Core Architecture
-* **Policy/Value Network:** MLP ($4 \rightarrow 128 \rightarrow 128 \rightarrow 2$) with ReLU activations.
+* **Policy/Value Network:** MLP ($4 \rightarrow 64 \rightarrow 2$) with ReLU activations.
 * **Replay Buffer:** FIFO memory queue $\mathcal{D}$ with maximum capacity $N = 10,000$. Samples mini-batches of size $B = 64$ uniformly at random $(s, a, r, s', d) \sim U(\mathcal{D})$ once buffer contains $\ge 1,000$ steps.
 * **Target Network:** Independent network weights $\theta^-$ updated via hard copy ($\theta^- \leftarrow \theta$) every $C = 500$ environment steps.
 
@@ -18,7 +18,7 @@ This document details the mathematical specifications, loss formulations, and hy
   $$y_i = r_i + \gamma (1 - d_i) \max_{a'} Q(s'_i, a'; \theta^-)$$
 * **Loss Function:** Smooth L1 (Huber) Loss to stabilize gradient steps against outlier TD errors:
   $$\mathcal{L}(\theta) = \frac{1}{B} \sum_{i=1}^{B} \text{Huber}\left( y_i - Q(s_i, a_i; \theta) \right)$$
-* **Exploration Schedule:** $\epsilon$-greedy decaying exponentially from $1.0$ to $0.05$ with decay factor $0.995$.
+* **Exploration Schedule:** $\epsilon$-greedy annealed linearly from $1.0$ down to $0.05$ over $5{,}000$ environment steps.
 
 ---
 
