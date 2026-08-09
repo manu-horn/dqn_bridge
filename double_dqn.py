@@ -8,6 +8,8 @@ import numpy as np
 import gymnasium as gym
 import matplotlib.pyplot as plt
 
+from utils import set_seed
+
 
 class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=64):
@@ -156,8 +158,10 @@ def plot_training_curve(rewards, window=100, save_path="training_curve.png"):
     print(f"Plot saved to {save_path}")
 
 
-def train():
+def train(seed=42, num_episodes=1000):
     env = gym.make("CartPole-v1")
+    set_seed(seed, env)
+
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
 
@@ -165,7 +169,7 @@ def train():
 
     episode_rewards = []
 
-    for episode in range(500):
+    for episode in range(num_episodes):
         state, _ = env.reset()
         episode_reward = 0.0
         terminated = False
@@ -199,13 +203,26 @@ def train():
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, "double_dqn_rewards.json")
+    if os.path.exists(log_path):
+        with open(log_path, "r") as f:
+            data = json.load(f)
+    else:
+        data = {"algorithm": "Double DQN", "seeds": {}}
+    data.setdefault("seeds", {})[str(seed)] = episode_rewards
     with open(log_path, "w") as f:
-        json.dump({"algorithm": "Double DQN", "rewards": episode_rewards}, f)
-    print(f"Rewards saved to {log_path}")
+        json.dump(data, f)
+    print(f"Rewards saved to {log_path} (seed {seed})")
 
     best = max(episode_rewards)
-    print(f"Training complete. Best episode reward: {best}")
+    print(f"Training complete (seed={seed}). Best episode reward: {best}")
 
 
 if __name__ == "__main__":
-    train()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--episodes", type=int, default=1000)
+    args = parser.parse_args()
+
+    train(seed=args.seed, num_episodes=args.episodes)

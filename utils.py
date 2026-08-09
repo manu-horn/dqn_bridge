@@ -1,12 +1,26 @@
 import json
 import os
+import random
 
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
 
 
 MA_WINDOW = 30
-STD_WINDOW = 30
+
+
+def set_seed(seed, env):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    env.reset(seed=seed)
+    env.action_space.seed(seed)
+    if hasattr(env.observation_space, "seed"):
+        env.observation_space.seed(seed)
+    return env
 
 
 def scan_logs(log_dir="logs"):
@@ -20,8 +34,11 @@ def scan_logs(log_dir="logs"):
         with open(path, "r") as f:
             data = json.load(f)
         algorithm = data.get("algorithm", filename.split("_")[0])
-        rewards = data.get("rewards", [])
-        runs[algorithm] = np.asarray(rewards, dtype=np.float32)
+        seeds = data.get("seeds")
+        if seeds is None:
+            seeds = {str(data.get("seed", 0)): data.get("rewards", [])}
+        for seed, rewards in seeds.items():
+            runs.setdefault(algorithm, {})[seed] = np.asarray(rewards, dtype=np.float32)
     return runs
 
 
@@ -31,32 +48,24 @@ def moving_average(data, window):
     return np.convolve(data, np.ones(window) / window, mode="valid")
 
 
-def moving_std(data, window):
-    if len(data) < window:
-        return np.zeros_like(data, dtype=np.float32)
-    cumsum = np.cumsum(np.insert(data, 0, 0.0))
-    cumsum_sq = np.cumsum(np.insert(np.square(data), 0, 0.0))
-    count = np.arange(window, len(data) + 1, dtype=np.float32)
-    mean = (cumsum[window:] - cumsum[:-window]) / window
-    var = (cumsum_sq[window:] - cumsum_sq[:-window]) / window - np.square(mean)
-    return np.sqrt(np.clip(var, 0.0, None))
-
-
-def plot_comparison(runs, save_path="comparison.png"):
+def plot_comparison(algorithms, save_path="comparison.png"):
     plt.figure(figsize=(12, 6))
-    for algorithm, rewards in runs.items():
-        if len(rewards) == 0:
+    for algorithm, seed_rewards in algorithms.items():
+        if len(seed_rewards) == 0:
             print(f"Skipping {algorithm}: no rewards")
             continue
-        ma = moving_average(rewards, MA_WINDOW)
-        std = moving_std(rewards, STD_WINDOW)
-        offset = MA_WINDOW - 1 if len(rewards) >= MA_WINDOW else 0
-        x = np.arange(offset, offset + len(ma))
-        plt.plot(x, ma, label=algorithm)
-        plt.fill_between(x, ma - std, ma + std, alpha=0.25)
+        ma_list = [moving_average(r, MA_WINDOW) for r in seed_rewards.values()]
+        length = min(len(m) for m in ma_list)
+        ma_arr = np.stack([m[:length] for m in ma_list])
+        mean_ma = ma_arr.mean(axis=0)
+        std_ma = ma_arr.std(axis=0)
+        offset = MA_WINDOW - 1 if length else 0
+        x = np.arange(offset, offset + length)
+        plt.plot(x, mean_ma, label=algorithm)
+        plt.fill_between(x, mean_ma - std_ma, mean_ma + std_ma, alpha=0.25)
     plt.xlabel("Episode")
     plt.ylabel("Total Reward")
-    plt.title("CartPole-v1 Benchmark")
+    plt.title("CartPole-v1 Benchmark (mean \u00b1 std across seeds)")
     plt.legend()
     plt.grid(alpha=0.3)
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
@@ -70,20 +79,29 @@ def run_comparison(log_dir="logs"):
         return
 
     budgets = {}
-    for algorithm, rewards in runs.items():
-        budgets.setdefault(len(rewards), {})[algorithm] = rewards
+    for algorithm, seed_rewards in runs.items():
+        n = next(iter(seed_rewards.values())).shape[0] if seed_rewards else 0
+        budgets.setdefault(n, {})[algorithm] = seed_rewards
 
-    for episode_count, group in budgets.items():
-        for algorithm, rewards in group.items():
-            stats = {"mean": float(np.mean(rewards)), "std": float(np.std(rewards))}
-            if len(rewards) >= MA_WINDOW:
-                ma = moving_average(rewards, MA_WINDOW)
-                stats["mean_moving_avg"] = float(ma[-1])
-                stats["best"] = float(np.max(rewards))
-            print(f"{algorithm} ({episode_count} episodes): {stats}")
+    for episode_count, algorithms in budgets.items():
+        n_seeds = len(next(iter(algorithms.values())))
+        for algorithm, seed_rewards in algorithms.items():
+            rewards = np.stack(list(seed_rewards.values()))
+            ma_arr = np.stack([moving_average(r, MA_WINDOW) for r in rewards])
+            mean_ma = ma_arr.mean(axis=0)
+            std_ma = ma_arr.std(axis=0)
+            stats = {
+                "seeds": len(rewards),
+                "mean": float(rewards.mean()),
+                "std": float(rewards.std()),
+                "last_ma_mean": float(mean_ma[-1]),
+                "last_ma_std": float(std_ma[-1]),
+                "best": float(rewards.max()),
+            }
+            print(f"{algorithm} ({episode_count} episodes, {stats['seeds']} seeds): {stats}")
 
         save_path = f"comparison_{episode_count}ep.png"
-        plot_comparison(group, save_path)
+        plot_comparison(algorithms, save_path)
 
 
 if __name__ == "__main__":

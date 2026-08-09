@@ -21,15 +21,12 @@ dqn_bridge/
 ├── dqn.py                  # DQN agent + training loop (Mnih 2013/2015)
 ├── double_dqn.py           # Double DQN agent + training loop (van Hasselt 2015)
 ├── reinforce.py            # REINFORCE agent + training loop (Williams 1992)
-├── utils.py                # Compares runs from logs/ and plots per-budget comparison charts
+├── utils.py                # Aggregates runs across seeds and plots comparison charts
 ├── AGENTS.md               # Agent architecture & hyperparameter specifications
 ├── requirements.txt
-├── logs/                   # Per-algorithm reward histories (JSON)
-│   ├── dqn_rewards.json
-│   ├── double_dqn_rewards.json
-│   └── reinforce_rewards.json
-├── comparison_500ep.png    # DQN vs Double DQN (500-episode budget)
-└── comparison_1000ep.png   # REINFORCE (1,000-episode budget)
+├── run_all.sh               # Trains all agents across seeds, then runs utils.py to compare
+├── logs/                   # Per-algorithm reward histories (JSON), grouped by seed key
+├── comparison_500ep.png   # All algorithms, 500-episode budget, mean ± std across seeds
 ```
 
 ## Installation
@@ -40,15 +37,25 @@ pip install -r requirements.txt
 
 ## Usage
 
-Train each algorithm:
+Train all three algorithms for 500 episodes across 3 seeds, then compare:
 
 ```bash
-python dqn.py          # 500 episodes → logs/dqn_rewards.json
-python double_dqn.py   # 500 episodes → logs/double_dqn_rewards.json
-python reinforce.py    # 1,000 episodes → logs/reinforce_rewards.json
+bash run_all.sh
 ```
 
-Each run saves its raw per-episode rewards to a JSON log in `logs/`. REINFORCE uses a larger budget because it performs only a single gradient update per episode and, being on-policy, requires more rollouts to converge.
+By default this runs seeds `42 43 44` at 500 episodes each, then `utils.py` to aggregate and plot. Both can be overridden with environment variables:
+
+```bash
+SEEDS="42 43 44 45 46" EPISODES=1000 bash run_all.sh
+```
+
+You can also train a single agent manually. Defaults: `--seed 42`, `--episodes 500`. Each run's raw per-episode rewards are appended to `logs/<algorithm>_rewards.json`, grouped by seed key.
+
+```bash
+python dqn.py --seed 42
+python double_dqn.py --seed 43
+python reinforce.py --seed 44
+```
 
 Compare trained runs:
 
@@ -56,14 +63,14 @@ Compare trained runs:
 python utils.py
 ```
 
-This reads every JSON in `logs/` and groups curves by episode budget so runs are only plotted on comparable axes. It produces one figure per budget, each with 30-episode moving-average lines and shaded standard-deviation bands: `comparison_500ep.png` (DQN vs Double DQN) and `comparison_1000ep.png` (REINFORCE).
+This reads every JSON in `logs/`, groups curves by episode budget, and averages each algorithm's 30-episode moving average **across seeds**, shading mean ± standard deviation. Since all three agents train for the same budget (500 episodes by default), one figure, `comparison_500ep.png`, contains all three for a fair comparison.
 
 ## Logging Contract
 
-Each training script writes its raw per-episode total rewards to `logs/<algorithm>_rewards.json` in the format:
+Each training run writes its raw per-episode total rewards to `logs/<algorithm>_rewards.json`, merging under a seed key:
 
 ```json
-{"algorithm": "DQN", "rewards": [24.0, 12.0, ...]}
+{"algorithm": "DQN", "seeds": {"42": [24.0, 12.0, ...], "43": [...]}}
 ```
 
 ## Environment

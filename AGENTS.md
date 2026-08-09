@@ -46,7 +46,7 @@ This document details the mathematical specifications, loss formulations, and hy
 ### Core Architecture
 * **Policy Network:** MLP ($4 \rightarrow 128 \rightarrow 2$) outputting unnormalized logits passed into a `Categorical` action distribution $\pi_\theta(a|s)$.
 * **Memory Strategy:** Full trajectory on-policy rollouts $(s_0, a_0, r_0), \dots, (s_T, a_T, r_T)$. No replay buffer or target network is used. Trajectory memory is wiped completely after every gradient update.
-* **Training Budget:** Trained for $1{,}000$ episodes (versus $500$ for DQN and Double DQN), since REINFORCE performs a single gradient update per episode and requires more on-policy rollouts to converge.
+* **Training Budget:** Trained for $500$ episodes by default (configurable via `--episodes`), matching the DQN and Double DQN budget to enable fair cross-algorithm comparison. REINFORCE performs a single gradient update per episode and requires more on-policy rollouts to converge.
 
 ### Mathematical Formulation
 * **Backward Discounted Return:**
@@ -71,5 +71,6 @@ This document details the mathematical specifications, loss formulations, and hy
 | **Batch Size** | $64$ | $64$ | Complete Episode |
 | **Target Update ($C$)** | Every $500$ steps | Every $500$ steps | $N/A$ |
 | **Loss Criteria** | Huber Loss | Huber Loss | Policy Negative Log-Likelihood |
-| **Episode Budget** | $500$ | $500$ | $1{,}000$ |
+| **Episode Budget** | $500$ | $500$ | $500$ |
+| **Seeds** | Configurable (`--seed`, default $42$); results reported as mean $\pm$ std across seeds | Configurable (`--seed`, default $42$); results reported as mean $\pm$ std across seeds | Configurable (`--seed`, default $42$); results reported as mean $\pm$ std across seeds |
 | **Output File** | `logs/dqn_rewards.json` | `logs/double_dqn_rewards.json` | `logs/reinforce_rewards.json` |
